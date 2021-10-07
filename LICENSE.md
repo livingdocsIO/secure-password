@@ -1,4 +1,5 @@
 Copyright (c) 2017, Emil Bay <github@tixz.dk>
+Copyright (c) 2021, Marc Bachmann <marc@livingdocs.io>
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above

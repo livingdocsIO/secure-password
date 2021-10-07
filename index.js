@@ -1,145 +1,139 @@
-var sodium = require('sodium-native')
-var assert = require('nanoassert')
+const argon2 = require('argon2')
+const {randomBytes, timingSafeEqual} = require('crypto')
+const {promisify} = require('util')
+const preGyp = require('@mapbox/node-pre-gyp')
+const bindings = require(preGyp.find(require.resolve('argon2/package.json')))
+const bindingsHash = promisify(bindings.hash)
+const generateSalt = promisify(randomBytes)
+
+const limits = {
+  ...bindings.limits,
+  passwordLength: {min: 0, max: 4294967295}
+}
+
+const VALID = Symbol('VALID')
+const INVALID = Symbol('INVALID')
+const VALID_NEEDS_REHASH = Symbol('VALID_NEEDS_REHASH')
+const INVALID_UNRECOGNIZED_HASH = Symbol('INVALID_UNRECOGNIZED_HASH')
+
+SecurePassword.INVALID_UNRECOGNIZED_HASH = INVALID_UNRECOGNIZED_HASH
+SecurePassword.INVALID = INVALID
+SecurePassword.VALID = VALID
+SecurePassword.VALID_NEEDS_REHASH = VALID_NEEDS_REHASH
+SecurePassword.MEMLIMIT_DEFAULT = 1 << 12
+SecurePassword.OPSLIMIT_DEFAULT = 3
+SecurePassword.HASH_BYTES = 32
+
+class AssertionError extends Error {}
+AssertionError.prototype.name = 'AssertionError'
+
+function assert (t, m) {
+  if (t) return
+  const err = new AssertionError(m)
+  Error.captureStackTrace(err, assert)
+  throw err
+}
+
+function assertBetween (value, {min, max}, key) {
+  if (min <= value && value <= max) return
+  const err = new AssertionError(
+    `${key}, must be between ${limits.hashLength.min} and ${limits.hashLength.max}`
+  )
+  Error.captureStackTrace(err, assertBetween)
+  throw err
+}
+
+const {serialize, deserialize: _phcDeserialize} = require('@phc/format')
+function deserialize (hashBuf) {
+  try {
+    const i = hashBuf.indexOf(0x00)
+    if (i !== -1) hashBuf = hashBuf.slice(0, i)
+    return _phcDeserialize(hashBuf.toString())
+  } catch (err) {
+    return
+  }
+}
+
+function needsRehash (deserializedHash, {version, memoryCost, timeCost}) {
+  const {version: v, params: {m, t}} = deserializedHash
+  return +v !== version || +m !== memoryCost || +t !== timeCost
+}
+
+function recognizedAlgorithm (deserializedHash) {
+  if (!deserializedHash) return false
+  return bindings.types[deserializedHash.id] !== undefined
+}
+
+async function argon2Verify (deserializedHash, passwordBuf, options) {
+  const {id, version = 0x10, params: {m, t, p, data}, salt, hash} = deserializedHash
+
+  return timingSafeEqual(await bindingsHash(passwordBuf, salt, {
+    ...options,
+    type: bindings.types[id],
+    version: +version,
+    hashLength: hash.length,
+    memoryCost: +m,
+    timeCost: +t,
+    parallelism: +p,
+    ...(data ? {associatedData: Buffer.from(data, 'base64')} : {})
+  }), hash)
+}
+
+function SecurePassword (opts = {}) {
+  const options = Object.freeze({
+    hashLength: opts.hashLength || SecurePassword.HASH_BYTES,
+    saltLength: opts.saltLength || 16,
+    timeCost: opts.timeCost || opts.opslimit || SecurePassword.OPSLIMIT_DEFAULT,
+    memoryCost: opts.memoryCost || opts.memlimit || SecurePassword.MEMLIMIT_DEFAULT,
+    parallelism: opts.parallelism || 1,
+    type: opts.type || bindings.types.argon2i,
+    version: bindings.version
+  })
+
+  const serializeOpts = Object.freeze({
+    id: bindings.names[options.type],
+    version: bindings.version,
+    params: {
+      m: options.memoryCost,
+      t: options.timeCost,
+      p: options.parallelism
+      // data: options.associatedData || undefined
+    }
+  })
+
+  assertBetween(options.hashLength, limits.hashLength, 'Invalid options.hashLength')
+  assertBetween(options.memoryCost, limits.memoryCost, 'Invalid options.memoryCost')
+  assertBetween(options.timeCost, limits.timeCost, 'Invalid options.timeCost')
+  assertBetween(options.parallelism, limits.parallelism, 'Invalid options.parallelism')
+
+  async function hash (passwordBuf) {
+    assert(passwordBuf instanceof Uint8Array, 'Invalid passwordBuf, must be Buffer or Uint8Array')
+    assertBetween(passwordBuf.length, limits.passwordLength, 'Invalid passwordBuf length')
+
+    const salt = await generateSalt(options.saltLength)
+    const hash = await bindingsHash(passwordBuf, salt, options)
+    return Buffer.from(serialize({
+      id: serializeOpts.id,
+      version: serializeOpts.version,
+      params: serializeOpts.params,
+      salt,
+      hash
+    }))
+  }
+
+  async function verify (passwordBuf, hashBuf) {
+    assert(passwordBuf instanceof Uint8Array, 'Invalid passwordBuf, must be Buffer or Uint8Array')
+    assert(hashBuf instanceof Uint8Array, 'Invalid hashBuf, must be Buffer or Uint8Array')
+    assertBetween(passwordBuf.length, limits.passwordLength, 'Invalid passwordBuf')
+
+    const deserializedHash = deserialize(hashBuf)
+    if (recognizedAlgorithm(deserializedHash) === false) return INVALID_UNRECOGNIZED_HASH
+    if (await argon2Verify(deserializedHash, passwordBuf, options) === false) return INVALID
+    if (needsRehash(deserializedHash, options)) return VALID_NEEDS_REHASH
+    return VALID
+  }
+
+  return {hash, verify}
+}
 
 module.exports = SecurePassword
-SecurePassword.HASH_BYTES = sodium.crypto_pwhash_STRBYTES
-
-SecurePassword.PASSWORD_BYTES_MIN = sodium.crypto_pwhash_PASSWD_MIN
-SecurePassword.PASSWORD_BYTES_MAX = sodium.crypto_pwhash_PASSWD_MAX
-
-SecurePassword.MEMLIMIT_MIN = sodium.crypto_pwhash_MEMLIMIT_MIN
-SecurePassword.MEMLIMIT_MAX = sodium.crypto_pwhash_MEMLIMIT_MAX
-SecurePassword.OPSLIMIT_MIN = sodium.crypto_pwhash_OPSLIMIT_MIN
-SecurePassword.OPSLIMIT_MAX = sodium.crypto_pwhash_OPSLIMIT_MAX
-
-SecurePassword.MEMLIMIT_DEFAULT = sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE
-SecurePassword.OPSLIMIT_DEFAULT = sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE
-
-SecurePassword.INVALID_UNRECOGNIZED_HASH = Symbol('INVALID_UNRECOGNIZED_HASH')
-SecurePassword.INVALID = Symbol('INVALID')
-SecurePassword.VALID = Symbol('VALID')
-SecurePassword.VALID_NEEDS_REHASH = Symbol('VALID_NEEDS_REHASH')
-
-function SecurePassword (opts) {
-  if (!(this instanceof SecurePassword)) return new SecurePassword(opts)
-  opts = opts || {}
-
-  if (opts.memlimit == null) this.memlimit = SecurePassword.MEMLIMIT_DEFAULT
-  else this.memlimit = opts.memlimit
-
-  assert(this.memlimit >= SecurePassword.MEMLIMIT_MIN, 'opts.memlimit must be at least MEMLIMIT_MIN (' + SecurePassword.MEMLIMIT_MIN + ')')
-  assert(this.memlimit <= SecurePassword.MEMLIMIT_MAX, 'opts.memlimit must be at most MEMLIMIT_MAX (' + SecurePassword.MEMLIMIT_MAX + ')')
-
-  if (opts.opslimit == null) this.opslimit = SecurePassword.OPSLIMIT_DEFAULT
-  else this.opslimit = opts.opslimit
-
-  assert(this.opslimit >= SecurePassword.OPSLIMIT_MIN, 'opts.opslimit must be at least OPSLIMIT_MIN (' + SecurePassword.OPSLIMIT_MIN + ')')
-  assert(this.opslimit <= SecurePassword.OPSLIMIT_MAX, 'opts.memlimit must be at most OPSLIMIT_MAX (' + SecurePassword.OPSLIMIT_MAX + ')')
-}
-
-SecurePassword.prototype.hashSync = function (passwordBuf) {
-  assert(Buffer.isBuffer(passwordBuf), 'passwordBuf must be Buffer')
-  assert(passwordBuf.length >= SecurePassword.PASSWORD_BYTES_MIN, 'passwordBuf must be at least PASSWORD_BYTES_MIN (' + SecurePassword.PASSWORD_BYTES_MIN + ')')
-  assert(passwordBuf.length < SecurePassword.PASSWORD_BYTES_MAX, 'passwordBuf must be shorter than PASSWORD_BYTES_MAX (' + SecurePassword.PASSWORD_BYTES_MAX + ')')
-
-  // Unsafe is okay here since sodium will overwrite all bytes
-  var hashBuf = Buffer.allocUnsafe(SecurePassword.HASH_BYTES)
-  sodium.crypto_pwhash_str(hashBuf, passwordBuf, this.opslimit, this.memlimit)
-
-  // Note that this buffer may have trailing NULL bytes, which is by design
-  // (of libsodium). The trailing NULL bytes can be safely trimmed if need
-  // be per libsodium docs. This is a TODO as we currently don't handle this case
-  return hashBuf
-}
-
-SecurePassword.prototype.hash = function (passwordBuf, cb) {
-  // support promises
-  if (cb === undefined) {
-    return new Promise((resolve, reject) => {
-      this.hash(passwordBuf, function (err, hashBuf) {
-        if (err) {
-          reject(err)
-          return
-        }
-
-        resolve(hashBuf)
-      })
-    })
-  }
-
-  assert(Buffer.isBuffer(passwordBuf), 'passwordBuf must be Buffer')
-  assert(passwordBuf.length >= SecurePassword.PASSWORD_BYTES_MIN, 'passwordBuf must be at least PASSWORD_BYTES_MIN (' + SecurePassword.PASSWORD_BYTES_MIN + ')')
-  assert(passwordBuf.length < SecurePassword.PASSWORD_BYTES_MAX, 'passwordBuf must be shorter than PASSWORD_BYTES_MAX (' + SecurePassword.PASSWORD_BYTES_MAX + ')')
-  assert(typeof cb === 'function', 'cb must be function')
-
-  // Unsafe is okay here since sodium will overwrite all bytes
-  var hashBuf = Buffer.allocUnsafe(SecurePassword.HASH_BYTES)
-  sodium.crypto_pwhash_str_async(hashBuf, passwordBuf, this.opslimit, this.memlimit, function (err) {
-    if (err) return cb(err)
-
-    return cb(null, hashBuf)
-  })
-}
-
-SecurePassword.prototype.verifySync = function (passwordBuf, hashBuf) {
-  assert(Buffer.isBuffer(passwordBuf), 'passwordBuf must be Buffer')
-  assert(passwordBuf.length >= SecurePassword.PASSWORD_BYTES_MIN, 'passwordBuf must be at least PASSWORD_BYTES_MIN (' + SecurePassword.PASSWORD_BYTES_MIN + ')')
-  assert(passwordBuf.length < SecurePassword.PASSWORD_BYTES_MAX, 'passwordBuf must be shorter than PASSWORD_BYTES_MAX (' + SecurePassword.PASSWORD_BYTES_MAX + ')')
-
-  assert(Buffer.isBuffer(hashBuf), 'hashBuf must be Buffer')
-  assert(hashBuf.length === SecurePassword.HASH_BYTES, 'hashBuf must be HASH_BYTES (' + SecurePassword.HASH_BYTES + ')')
-
-  if (recognizedAlgorithm(hashBuf) === false) return SecurePassword.INVALID_UNRECOGNIZED_HASH
-
-  if (sodium.crypto_pwhash_str_verify(hashBuf, passwordBuf) === false) {
-    return SecurePassword.INVALID
-  }
-
-  if (sodium.crypto_pwhash_str_needs_rehash(hashBuf, this.opslimit, this.memlimit)) {
-    return SecurePassword.VALID_NEEDS_REHASH
-  }
-
-  return SecurePassword.VALID
-}
-
-SecurePassword.prototype.verify = function (passwordBuf, hashBuf, cb) {
-  // support promises
-  if (cb === undefined) {
-    return new Promise((resolve, reject) => {
-      this.verify(passwordBuf, hashBuf, function (err, bool) {
-        if (err) {
-          reject(err)
-          return
-        }
-
-        resolve(bool)
-      })
-    })
-  }
-
-  assert(Buffer.isBuffer(passwordBuf), 'passwordBuf must be Buffer')
-  assert(passwordBuf.length >= SecurePassword.PASSWORD_BYTES_MIN, 'passwordBuf must be at least PASSWORD_BYTES_MIN (' + SecurePassword.PASSWORD_BYTES_MIN + ')')
-  assert(passwordBuf.length < SecurePassword.PASSWORD_BYTES_MAX, 'passwordBuf must be shorter than PASSWORD_BYTES_MAX (' + SecurePassword.PASSWORD_BYTES_MAX + ')')
-  assert(typeof cb === 'function', 'cb must be function')
-
-  assert(Buffer.isBuffer(hashBuf), 'hashBuf must be Buffer')
-  assert(hashBuf.length === SecurePassword.HASH_BYTES, 'hashBuf must be HASH_BYTES (' + SecurePassword.HASH_BYTES + ')')
-
-  if (recognizedAlgorithm(hashBuf) === false) return process.nextTick(cb, null, SecurePassword.INVALID_UNRECOGNIZED_HASH)
-
-  sodium.crypto_pwhash_str_verify_async(hashBuf, passwordBuf, function (err, bool) {
-    if (err) return cb(err)
-
-    if (bool === false) return cb(null, SecurePassword.INVALID)
-
-    if (sodium.crypto_pwhash_str_needs_rehash(hashBuf, this.opslimit, this.memlimit)) {
-      return cb(null, SecurePassword.VALID_NEEDS_REHASH)
-    }
-
-    return cb(null, SecurePassword.VALID)
-  }.bind(this))
-}
-
-function recognizedAlgorithm (hashBuf) {
-  return hashBuf.indexOf('$argon2i$') > -1 || hashBuf.indexOf('$argon2id$') > -1
-}

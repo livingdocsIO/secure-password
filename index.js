@@ -86,7 +86,7 @@ function SecurePassword (opts = {}) {
     timeCost: opts.timeCost || opts.opslimit || SecurePassword.OPSLIMIT_DEFAULT,
     memoryCost: opts.memoryCost || opts.memlimit || SecurePassword.MEMLIMIT_DEFAULT,
     parallelism: opts.parallelism || 1,
-    type: opts.type || bindings.types.argon2i,
+    type: opts.type || bindings.types.argon2id,
     version: bindings.version
   })
 

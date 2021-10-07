@@ -1,5 +1,5 @@
 const test = require('tape')
-const securePassword = require('./index.js')
+const {securePassword, defaults} = require('./index.js')
 
 const messages = {
   [securePassword.VALID]: 'valid',
@@ -31,7 +31,7 @@ test('Can hash password simultaneous', async function (assert) {
   assert.notOk(userPassword.equals(hash2))
 })
 
-test('Can verify password (identity) using promises', async function (assert) {
+test('Can verify password', async function (assert) {
   const pwd = securePassword()
   const userPassword = Buffer.from('my secret')
   const passwordHash = await pwd.hash(userPassword)
@@ -43,21 +43,21 @@ test('Can verify password (identity) using promises', async function (assert) {
 test('Needs rehash async', async function (assert) {
   assert.plan(7)
   const weakPwd = securePassword({
-    memoryCost: securePassword.MEMLIMIT_DEFAULT,
-    timeCost: securePassword.OPSLIMIT_DEFAULT
+    memoryCost: defaults.memoryCost,
+    timeCost: defaults.timeCost
   })
 
   const betterPwd = securePassword({
-    memoryCost: securePassword.MEMLIMIT_DEFAULT + 1024,
-    timeCost: securePassword.OPSLIMIT_DEFAULT + 1
+    memoryCost: defaults.memoryCost + 1024,
+    timeCost: defaults.timeCost + 1
   })
 
   const userPassword = Buffer.from('my secret')
   const wrongPassword = Buffer.from('my secret 2')
   const pass = Buffer.from('hello world')
   const empty = Buffer.from('')
-  const argon2ipass = Buffer.from('JGFyZ29uMmkkdj0xOSRtPTMyNzY4LHQ9NCxwPTEkYnB2R2dVNjR1Q3h4TlF2aWYrd2Z3QSR3cXlWL1EvWi9UaDhVNUlaeEFBN0RWYjJVMWtLSG01VHhLOWE2QVlkOUlVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', 'base64')
-  const argon2ipassempty = Buffer.from('JGFyZ29uMmkkdj0xOSRtPTMyNzY4LHQ9NCxwPTEkN3dZV0EvbjBHQjRpa3lwSWN5UVh6USRCbjd6TnNrcW03aWNwVGNjNGl6WC9xa0liNUZBQnZVNGw2MUVCaTVtaWFZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', 'base64')
+  const argon2ipass = Buffer.from('$argon2i$v=19$m=32768,t=4,p=1$bpvGgU64uCxxNQvif+wfwA$wqyV/Q/Z/Th8U5IZxAA7DVb2U1kKHm5TxK9a6AYd9IU')
+  const argon2ipassempty = Buffer.from('$argon2i$v=19$m=32768,t=4,p=1$7wYWA/n0GB4ikypIcyQXzQ$Bn7zNskqm7icpTcc4izX/qkIb5FABvU4l61EBi5miaY')
 
   const weakHash = await weakPwd.hash(userPassword)
   const weakValid = await weakPwd.verify(userPassword, weakHash)
@@ -87,7 +87,7 @@ test('Needs rehash async', async function (assert) {
 test('Can handle invalid hash sync', async function (assert) {
   const pwd = securePassword()
   const userPassword = Buffer.from('my secret')
-  const invalidHash = Buffer.allocUnsafe(securePassword.HASH_BYTES)
+  const invalidHash = Buffer.allocUnsafe(128)
 
   const unrecognizedHash = await pwd.verify(userPassword, invalidHash)
   verifyStatus(assert, 'unrecognized hash', securePassword.INVALID_UNRECOGNIZED_HASH, unrecognizedHash)

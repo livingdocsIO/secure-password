@@ -1,4 +1,3 @@
-const argon2 = require('argon2')
 const {randomBytes, timingSafeEqual} = require('crypto')
 const {promisify} = require('util')
 const preGyp = require('@mapbox/node-pre-gyp')
@@ -6,23 +5,36 @@ const bindings = require(preGyp.find(require.resolve('argon2/package.json')))
 const bindingsHash = promisify(bindings.hash)
 const generateSalt = promisify(randomBytes)
 
-const limits = {
+const limits = Object.freeze({
   ...bindings.limits,
   passwordLength: {min: 0, max: 4294967295}
-}
+})
+
+// Attention, the old secure-password had different options
+// timeCost=2, hashLength=32, memoryCost=65536
+// memoryCost is now also in kilobytes instead of bytes
+const defaults = Object.freeze({
+  hashLength: 32,
+  saltLength: 16,
+  timeCost: 3,
+  memoryCost: 65536,
+  parallelism: 1,
+  type: bindings.types.argon2id,
+  version: bindings.version
+})
 
 const VALID = Symbol('VALID')
 const INVALID = Symbol('INVALID')
 const VALID_NEEDS_REHASH = Symbol('VALID_NEEDS_REHASH')
 const INVALID_UNRECOGNIZED_HASH = Symbol('INVALID_UNRECOGNIZED_HASH')
 
-SecurePassword.INVALID_UNRECOGNIZED_HASH = INVALID_UNRECOGNIZED_HASH
-SecurePassword.INVALID = INVALID
-SecurePassword.VALID = VALID
-SecurePassword.VALID_NEEDS_REHASH = VALID_NEEDS_REHASH
-SecurePassword.MEMLIMIT_DEFAULT = 1 << 12
-SecurePassword.OPSLIMIT_DEFAULT = 3
-SecurePassword.HASH_BYTES = 32
+securePassword.limits = limits
+securePassword.defaults = defaults
+securePassword.INVALID_UNRECOGNIZED_HASH = INVALID_UNRECOGNIZED_HASH
+securePassword.INVALID = INVALID
+securePassword.VALID = VALID
+securePassword.VALID_NEEDS_REHASH = VALID_NEEDS_REHASH
+securePassword.securePassword = securePassword
 
 class AssertionError extends Error {}
 AssertionError.prototype.name = 'AssertionError'
@@ -35,15 +47,14 @@ function assert (t, m) {
 }
 
 function assertBetween (value, {min, max}, key) {
-  if (min <= value && value <= max) return
-  const err = new AssertionError(
-    `${key}, must be between ${limits.hashLength.min} and ${limits.hashLength.max}`
-  )
+  if (value >= min && value <= max) return
+  const err = new AssertionError(`${key} (${value}), must be between ${min} and ${max}`)
   Error.captureStackTrace(err, assertBetween)
   throw err
 }
 
 const {serialize, deserialize: _phcDeserialize} = require('@phc/format')
+// Removes trailing null bytes from a buffer and deserializes it
 function deserialize (hashBuf) {
   try {
     const i = hashBuf.indexOf(0x00)
@@ -65,7 +76,7 @@ function recognizedAlgorithm (deserializedHash) {
 }
 
 async function argon2Verify (deserializedHash, passwordBuf, options) {
-  const {id, version = 0x10, params: {m, t, p, data}, salt, hash} = deserializedHash
+  const {id, version = 0x10, params: {m, t, p}, salt, hash} = deserializedHash
 
   return timingSafeEqual(await bindingsHash(passwordBuf, salt, {
     ...options,
@@ -74,21 +85,12 @@ async function argon2Verify (deserializedHash, passwordBuf, options) {
     hashLength: hash.length,
     memoryCost: +m,
     timeCost: +t,
-    parallelism: +p,
-    ...(data ? {associatedData: Buffer.from(data, 'base64')} : {})
+    parallelism: +p
   }), hash)
 }
 
-function SecurePassword (opts = {}) {
-  const options = Object.freeze({
-    hashLength: opts.hashLength || SecurePassword.HASH_BYTES,
-    saltLength: opts.saltLength || 16,
-    timeCost: opts.timeCost || opts.opslimit || SecurePassword.OPSLIMIT_DEFAULT,
-    memoryCost: opts.memoryCost || opts.memlimit || SecurePassword.MEMLIMIT_DEFAULT,
-    parallelism: opts.parallelism || 1,
-    type: opts.type || bindings.types.argon2id,
-    version: bindings.version
-  })
+function securePassword (opts = {}) {
+  const options = Object.freeze({...defaults, ...opts})
 
   const serializeOpts = Object.freeze({
     id: bindings.names[options.type],
@@ -97,7 +99,6 @@ function SecurePassword (opts = {}) {
       m: options.memoryCost,
       t: options.timeCost,
       p: options.parallelism
-      // data: options.associatedData || undefined
     }
   })
 
@@ -136,4 +137,4 @@ function SecurePassword (opts = {}) {
   return {hash, verify}
 }
 
-module.exports = SecurePassword
+module.exports = securePassword

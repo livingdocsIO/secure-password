@@ -89,11 +89,19 @@ async function argon2Verify (deserializedHash, passwordBuf, options) {
   }), hash)
 }
 
+const types = {}
+for (const name in bindings.types) {
+  types[name] = bindings.types[name]
+  types[bindings.types[name]] = bindings.types[name]
+}
+
 function securePassword (opts = {}) {
   const options = Object.freeze({...defaults, ...opts})
+  const type = opts.type !== undefined ? types[opts.type] : defaults.type
+  assert(type, 'Invalid type, must be one of argon2d, argon2i or argon2id')
 
   const serializeOpts = Object.freeze({
-    id: bindings.names[options.type],
+    id: bindings.names[type],
     version: bindings.version,
     params: {
       m: options.memoryCost,

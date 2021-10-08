@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/livingdocs/secure-password.git"
+    "url": "git+https://github.com/livingdocsIO/secure-password.git"
   },
   "keywords": [
     "password",
@@ -27,9 +27,9 @@
   "author": "Marc Bachmann <marc@livingdocs.io>",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/livingdocs/secure-password/issues"
+    "url": "https://github.com/livingdocsIO/secure-password/issues"
   },
-  "homepage": "https://github.com/livingdocs/secure-password#readme",
+  "homepage": "https://github.com/livingdocsIO/secure-password#readme",
   "release": {
     "extends": "@livingdocs/semantic-release-presets/npm-github"
   }

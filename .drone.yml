@@ -30,9 +30,9 @@ steps:
   image: livingdocs/semantic-release:v1.2.1
   environment:
     GH_TOKEN:
-      from_secret: GH_TOKEN
+      from_secret: gh_token
     NPM_TOKEN:
-      from_secret: NPM_TOKEN
+      from_secret: npm_token
   depends_on:
   - test-node-current-alpine
   - test-node-16-debian
@@ -44,6 +44,6 @@ trigger:
   event: [push]
 ---
 kind: signature
-hmac: 2998e17dc4e7fd0676aff03d5c0132b0f64ccecd73d86f99b46062f9223bc0bd
+hmac: 053f9095e742265c30113aeaae26ddd76dfb3aa3ca5422286cd11f78138951bf
 
 ...

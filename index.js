@@ -4,8 +4,6 @@ const preGyp = require('@mapbox/node-pre-gyp')
 const bindings = require(preGyp.find(require.resolve('argon2/package.json')))
 const bindingsHash = promisify(bindings.hash)
 const generateSalt = promisify(randomBytes)
-const textEncoder = new TextEncoder()
-const textDecoder = new TextDecoder()
 
 const limits = Object.freeze({
   ...bindings.limits,
@@ -57,16 +55,11 @@ function assertBetween (value, {min, max}, key) {
 
 const {serialize, deserialize: _phcDeserialize} = require('@phc/format')
 // Removes trailing null bytes from a buffer and deserializes it
-function deserialize (hash) {
-  if (typeof hash !== 'string') {
-    assert(hash instanceof Uint8Array, 'Invalid hash, must be string, Buffer or Uint8Array')
-    const i = hash.indexOf(0x00)
-    if (i !== -1) hash = textDecoder.decode(hash.slice(0, i))
-    else hash = textDecoder.decode(hash)
-  }
-
+function deserialize (hashBuf) {
   try {
-    return _phcDeserialize(hash)
+    const i = hashBuf.indexOf(0x00)
+    if (i !== -1) hashBuf = hashBuf.slice(0, i)
+    return _phcDeserialize(hashBuf.toString())
   } catch (err) {
     return
   }
@@ -128,7 +121,7 @@ function securePassword (opts = {}) {
 
     const salt = await generateSalt(options.saltLength)
     const hash = await bindingsHash(passwordBuf, salt, options)
-    return textEncoder.encode(serialize({
+    return Buffer.from(serialize({
       id: serializeOpts.id,
       version: serializeOpts.version,
       params: serializeOpts.params,
@@ -139,6 +132,7 @@ function securePassword (opts = {}) {
 
   async function verify (passwordBuf, hashBuf) {
     assert(passwordBuf instanceof Uint8Array, 'Invalid passwordBuf, must be Buffer or Uint8Array')
+    assert(hashBuf instanceof Uint8Array, 'Invalid hashBuf, must be Buffer or Uint8Array')
     assertBetween(passwordBuf.length, limits.passwordLength, 'Invalid passwordBuf')
 
     const deserializedHash = deserialize(hashBuf)

@@ -1,0 +1,49 @@
+---
+type: docker
+kind: pipeline
+name: default
+
+steps:
+- name: test-node-current-alpine
+  image: node:current-alpine
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
+- name: test-node-16-debian
+  image: node:16
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
+- name: test-node-16-alpine
+  image: node:16-alpine
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
+- name: test-node-14-debian
+  # node:14 (debian stretch) uses a glibc version, which is too old
+  # we'll need to test against buster
+  image: node:14-buster
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
+- name: test-node-14-alpine
+  image: node:14-alpine
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
+- name: release
+  image: livingdocs/semantic-release:v1.2.1
+  environment:
+    GH_TOKEN:
+      from_secret: GH_TOKEN
+    NPM_TOKEN:
+      from_secret: NPM_TOKEN
+  depends_on:
+  - test-node-current-alpine
+  - test-node-16-debian
+  - test-node-14-debian
+  - test-node-16-alpine
+  - test-node-14-alpine
+
+trigger:
+  event: [push]
+---
+kind: signature
+hmac: 2998e17dc4e7fd0676aff03d5c0132b0f64ccecd73d86f99b46062f9223bc0bd
+
+...

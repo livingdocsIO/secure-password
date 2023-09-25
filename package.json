@@ -4,12 +4,12 @@
   "description": "Making Password storage safer for all",
   "main": "index.js",
   "dependencies": {
-    "@mapbox/node-pre-gyp": "^1.0.5",
+    "@mapbox/node-pre-gyp": "^1.0.11",
     "@phc/format": "^1.0.0",
-    "argon2": "0.28.2"
+    "argon2": "^0.31.1"
   },
   "devDependencies": {
-    "tape": "^5.3.1"
+    "tape": "^5.7.0"
   },
   "scripts": {
     "test": "tape test.js"

@@ -5,9 +5,29 @@ const bindings = require(preGyp.find(require.resolve('argon2/package.json')))
 const bindingsHash = promisify(bindings.hash)
 const generateSalt = promisify(randomBytes)
 
+const VERSION = 0x13
+
+const types = Object.freeze({
+  '0': 0,
+  '1': 1,
+  '2': 2,
+  argon2d: 0,
+  argon2i: 1,
+  argon2id: 2
+})
+
+const names = Object.freeze({
+  [types.argon2d]: 'argon2d',
+  [types.argon2i]: 'argon2i',
+  [types.argon2id]: 'argon2id',
+})
+
 const limits = Object.freeze({
-  ...bindings.limits,
-  passwordLength: {min: 0, max: 4294967295}
+  hashLength: { max: 4294967295, min: 4 },
+  memoryCost: { max: 4294967295, min: 2048 },
+  timeCost: { max: 4294967295, min: 2 },
+  parallelism: { max: 16777215, min: 1 },
+  passwordLength: { min: 0, max: 4294967295 }
 })
 
 // Attention, the old secure-password had different options
@@ -19,8 +39,8 @@ const defaults = Object.freeze({
   timeCost: 3,
   memoryCost: 65536,
   parallelism: 1,
-  type: bindings.types.argon2id,
-  version: bindings.version
+  type: types.argon2id,
+  version: VERSION
 })
 
 const VALID = Symbol('VALID')
@@ -72,7 +92,7 @@ function needsRehash (deserializedHash, {version, memoryCost, timeCost}) {
 
 function recognizedAlgorithm (deserializedHash) {
   if (!deserializedHash) return false
-  return bindings.types[deserializedHash.id] !== undefined
+  return types[deserializedHash.id] !== undefined
 }
 
 async function argon2Verify (deserializedHash, passwordBuf, options) {
@@ -80,7 +100,7 @@ async function argon2Verify (deserializedHash, passwordBuf, options) {
 
   return timingSafeEqual(await bindingsHash(passwordBuf, salt, {
     ...options,
-    type: bindings.types[id],
+    type: types[id],
     version: +version,
     hashLength: hash.length,
     memoryCost: +m,
@@ -89,20 +109,14 @@ async function argon2Verify (deserializedHash, passwordBuf, options) {
   }), hash)
 }
 
-const types = {}
-for (const name in bindings.types) {
-  types[name] = bindings.types[name]
-  types[bindings.types[name]] = bindings.types[name]
-}
-
 function securePassword (opts = {}) {
   const options = Object.freeze({...defaults, ...opts})
   const type = opts.type !== undefined ? types[opts.type] : defaults.type
   assert(type, 'Invalid type, must be one of argon2d, argon2i or argon2id')
 
   const serializeOpts = Object.freeze({
-    id: bindings.names[type],
-    version: bindings.version,
+    id: names[type],
+    version: VERSION,
     params: {
       m: options.memoryCost,
       t: options.timeCost,

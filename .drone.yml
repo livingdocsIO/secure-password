@@ -27,12 +27,12 @@ steps:
   commands: [cp -R . /src, cd /src, npm ci, npm test]
 
 - name: release
-  image: livingdocs/semantic-release:v1.2.1
+  image: livingdocs/semantic-release:v2.1.1
   environment:
     GH_TOKEN:
-      from_secret: gh_token
+      from_secret: GH_TOKEN
     NPM_TOKEN:
-      from_secret: npm_token
+      from_secret: NPM_TOKEN
   depends_on:
   - test-node-current-alpine
   - test-node-16-debian
@@ -44,6 +44,6 @@ trigger:
   event: [push]
 ---
 kind: signature
-hmac: 053f9095e742265c30113aeaae26ddd76dfb3aa3ca5422286cd11f78138951bf
+hmac: cac9ff9895474275bc88d5aed348567d033fab136e4e9603d1a2552538d3dbbd
 
 ...

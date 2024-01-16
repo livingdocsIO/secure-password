@@ -31,6 +31,7 @@
   },
   "homepage": "https://github.com/livingdocsIO/secure-password#readme",
   "release": {
-    "extends": "@livingdocs/semantic-release-presets/npm-github"
+    "extends": "@livingdocs/semantic-release-presets/npm-github",
+    "branches": ["main"]
   }
 }

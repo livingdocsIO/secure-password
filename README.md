@@ -1,7 +1,4 @@
-# `secure-password`
-
-[![Build Status](https://travis-ci.org/emilbayes/secure-password.svg?branch=master)](https://travis-ci.org/emilbayes/secure-password)
-[![Build status](https://ci.appveyor.com/api/projects/status/a1atq7xypwf3ebfc/branch/master?svg=true)](https://ci.appveyor.com/project/emilbayes/secure-password/branch/master)
+# `@livingdocsIO/secure-password`
 
 > Making Password storage safer for all
 
@@ -10,7 +7,6 @@
 - State of the art password hashing algorithm (Argon2id)
 - Safe defaults for most applications
 - Future-proof so work factors and hashing algorithms can be easily upgraded
-- `Buffers` everywhere for safer memory management
 
 ## Usage
 
@@ -160,14 +156,12 @@ unrecognized hashes, since this only requires some lightweight pattern matching.
 ## Install
 
 ```sh
-npm install secure-password
+npm install @livingdocsIO/secure-password
 ```
 
 ## Credits
 
-I want to thank [Tom Streller](https://github.com/scan) for donating the package
-name on npm. The `<1.0.0` versions that he had written and published to npm can
-still be downloaded and the source is available in his [`scan/secure-password` repository](https://github.com/scan/secure-password)
+Thanks to [Emil Bay] for maintaing https://github.com/emilbayes/secure-password, which this work is built on.
 
 ## License
 

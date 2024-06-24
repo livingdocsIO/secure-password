@@ -4,9 +4,8 @@
   "description": "Making Password storage safer for all",
   "main": "index.js",
   "dependencies": {
-    "@mapbox/node-pre-gyp": "^1.0.11",
     "@phc/format": "^1.0.0",
-    "argon2": "^0.31.1"
+    "argon2": "^0.40.3"
   },
   "devDependencies": {
     "tape": "^5.7.0"
@@ -32,6 +31,8 @@
   "homepage": "https://github.com/livingdocsIO/secure-password#readme",
   "release": {
     "extends": "@livingdocs/semantic-release-presets/npm-github",
-    "branches": ["main"]
+    "branches": [
+      "main"
+    ]
   }
 }

@@ -8,22 +8,28 @@ steps:
   image: node:current-alpine
   commands: [cp -R . /src, cd /src, npm ci, npm test]
 
-- name: test-node-16-debian
-  image: node:16
+- name: test-node-22-debian
+  image: node:22
   commands: [cp -R . /src, cd /src, npm ci, npm test]
 
-- name: test-node-16-alpine
-  image: node:16-alpine
+- name: test-node-22-alpine
+  image: node:22-alpine
   commands: [cp -R . /src, cd /src, npm ci, npm test]
 
-- name: test-node-14-debian
-  # node:14 (debian stretch) uses a glibc version, which is too old
-  # we'll need to test against buster
-  image: node:14-buster
+- name: test-node-20-debian
+  image: node:20
   commands: [cp -R . /src, cd /src, npm ci, npm test]
 
-- name: test-node-14-alpine
-  image: node:14-alpine
+- name: test-node-20-alpine
+  image: node:20-alpine
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
+- name: test-node-18-alpine
+  image: node:18-alpine
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
+- name: test-node-18-debian
+  image: node:18
   commands: [cp -R . /src, cd /src, npm ci, npm test]
 
 - name: release
@@ -35,15 +41,17 @@ steps:
       from_secret: NPM_TOKEN
   depends_on:
   - test-node-current-alpine
-  - test-node-16-debian
-  - test-node-14-debian
-  - test-node-16-alpine
-  - test-node-14-alpine
+  - test-node-22-debian
+  - test-node-22-alpine
+  - test-node-20-debian
+  - test-node-20-alpine
+  - test-node-18-debian
+  - test-node-18-alpine
 
 trigger:
   event: [push]
 ---
 kind: signature
-hmac: c819798c28b982c5df7c0aee4af2275f5f024cc19991050ebe1207fcdc91a382
+hmac: e2aabe6feb8e9568c8732a0b2d6643d2f8796ad34be11bc15a0cd0dbcdd34cf4
 
 ...

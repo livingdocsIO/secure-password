@@ -1,10 +1,11 @@
 const {randomBytes, timingSafeEqual} = require('crypto')
-const argon2PackagePath = require.resolve('argon2/package.json').replace('/package.json', '')
-const gypBuild = require('module').createRequire(argon2PackagePath)('node-gyp-build')
-const {hash: bindingsHash} = gypBuild(argon2PackagePath)
+const {hashRaw} = require('@node-rs/argon2')
 const generateSalt = require('util').promisify(randomBytes)
 
 const VERSION = 0x13
+
+// @node-rs/argon2 Version enum: V0x10 = 0 (argon2 version 16), V0x13 = 1 (argon2 version 19)
+const versions = Object.freeze({0x10: 0, 0x13: 1})
 
 const types = Object.freeze({
   '0': 0,
@@ -95,20 +96,18 @@ function recognizedAlgorithm (deserializedHash) {
 }
 
 async function argon2Verify (deserializedHash, passwordBuf, secret) {
-  const {id, version = 0x10, params: {m, t, p, data = ''}, salt, hash} = deserializedHash
+  const {id, version = 0x10, params: {m, t, p}, salt, hash} = deserializedHash
 
   return timingSafeEqual(
-    await bindingsHash({
-      password: passwordBuf,
+    await hashRaw(passwordBuf, {
       salt,
-      secret,
-      data: Buffer.from(data, 'base64'),
-      hashLength: hash.byteLength,
-      m: +m,
-      t: +t,
-      p: +p,
-      version: +version,
-      type: types[id],
+      outputLen: hash.byteLength,
+      memoryCost: +m,
+      timeCost: +t,
+      parallelism: +p,
+      version: versions[+version] ?? 1,
+      algorithm: types[id],
+      secret: secret && secret.length ? secret : undefined,
     }),
     hash
   )
@@ -116,8 +115,7 @@ async function argon2Verify (deserializedHash, passwordBuf, secret) {
 
 function securePassword (opts = {}) {
   const options = Object.freeze({...defaults, ...opts})
-  const nullBuffer = Buffer.alloc(0)
-  const secret = options.secret ? Buffer.from(options.secret) : nullBuffer
+  const secret = options.secret ? Buffer.from(options.secret) : Buffer.alloc(0)
   const type = opts.type !== undefined ? types[opts.type] : defaults.type
   assert(type, 'Invalid type, must be one of argon2d, argon2i or argon2id')
 
@@ -141,17 +139,15 @@ function securePassword (opts = {}) {
     assertBetween(passwordBuf.length, limits.passwordLength, 'Invalid passwordBuf length')
 
     const salt = await generateSalt(options.saltLength)
-    const hash = await bindingsHash({
-      password: passwordBuf,
+    const hash = await hashRaw(passwordBuf, {
       salt,
-      secret,
-      data: nullBuffer,
-      hashLength: options.hashLength,
-      m: options.memoryCost,
-      t: options.timeCost,
-      p: options.parallelism,
-      version: options.version,
-      type: options.type,
+      outputLen: options.hashLength,
+      memoryCost: options.memoryCost,
+      timeCost: options.timeCost,
+      parallelism: options.parallelism,
+      version: versions[options.version],
+      algorithm: options.type,
+      secret: secret.length ? secret : undefined,
     })
     return Buffer.from(serialize({
       id: serializeOpts.id,

@@ -1,4 +1,5 @@
-const test = require('tape')
+const {test} = require('node:test')
+const assert = require('node:assert/strict')
 const {securePassword, defaults} = require('./index.js')
 
 const messages = {
@@ -8,40 +9,35 @@ const messages = {
   [securePassword.INVALID_UNRECOGNIZED_HASH]: 'invalid unrecognized hash'
 }
 
-function verifyStatus (assert, name, expected, actual) {
-  if (expected === actual) return assert.ok(true, `'${name}' is ${messages[expected]}`)
-  assert.ok(false, `'${name}' expected to be ${messages[expected]}, but was ${messages[actual]}`)
+function verifyStatus (name, expected, actual) {
+  assert.equal(actual, expected, `'${name}' expected to be ${messages[expected]}, but was ${messages[actual]}`)
 }
 
-test('Can hash password', async function (assert) {
+test('Can hash password', async function () {
   const pwd = securePassword()
   const userPassword = Buffer.from('my secrets')
   const passwordHash = await pwd.hash(userPassword)
-  assert.notOk(userPassword.equals(passwordHash))
-  assert.end()
+  assert.ok(!userPassword.equals(passwordHash))
 })
 
-test('Can hash password simultaneous', async function (assert) {
-  assert.plan(2)
+test('Can hash password simultaneous', async function () {
   const pwd = securePassword()
   const userPassword = Buffer.from('my secrets')
   const [hash1, hash2] = await Promise.all([pwd.hash(userPassword), pwd.hash(userPassword)])
 
-  assert.notOk(userPassword.equals(hash1))
-  assert.notOk(userPassword.equals(hash2))
+  assert.ok(!userPassword.equals(hash1))
+  assert.ok(!userPassword.equals(hash2))
 })
 
-test('Can verify password', async function (assert) {
+test('Can verify password', async function () {
   const pwd = securePassword()
   const userPassword = Buffer.from('my secret')
   const passwordHash = await pwd.hash(userPassword)
   const bool = await pwd.verify(userPassword, passwordHash)
-  assert.ok(bool === securePassword.VALID)
-  assert.end()
+  assert.equal(bool, securePassword.VALID)
 })
 
-test('Needs rehash async', async function (assert) {
-  assert.plan(7)
+test('Needs rehash async', async function () {
   const weakPwd = securePassword({
     memoryCost: defaults.memoryCost,
     timeCost: defaults.timeCost
@@ -61,35 +57,34 @@ test('Needs rehash async', async function (assert) {
 
   const weakHash = await weakPwd.hash(userPassword)
   const weakValid = await weakPwd.verify(userPassword, weakHash)
-  verifyStatus(assert, 'weak valid', securePassword.VALID, weakValid)
+  verifyStatus('weak valid', securePassword.VALID, weakValid)
 
   const weakInvalid = await weakPwd.verify(wrongPassword, weakHash)
-  verifyStatus(assert, 'weak invalid', securePassword.INVALID, weakInvalid)
+  verifyStatus('weak invalid', securePassword.INVALID, weakInvalid)
 
   const rehashValid = await betterPwd.verify(userPassword, weakHash)
-  verifyStatus(assert, 'weak right', securePassword.VALID_NEEDS_REHASH, rehashValid)
+  verifyStatus('weak right', securePassword.VALID_NEEDS_REHASH, rehashValid)
 
   const rehashValidAlgo = await weakPwd.verify(pass, argon2ipass)
-  verifyStatus(assert, 'weak argon2idpass right', securePassword.VALID_NEEDS_REHASH, rehashValidAlgo)
+  verifyStatus('weak argon2idpass right', securePassword.VALID_NEEDS_REHASH, rehashValidAlgo)
 
   const weakNotRight = await weakPwd.verify(empty, argon2ipassempty)
-  verifyStatus(assert, 'weak argon2ipassempty right', securePassword.VALID_NEEDS_REHASH, weakNotRight)
+  verifyStatus('weak argon2ipassempty right', securePassword.VALID_NEEDS_REHASH, weakNotRight)
 
   const betterHash = await betterPwd.hash(userPassword)
 
   const betterValid = await betterPwd.verify(userPassword, betterHash)
-  verifyStatus(assert, 'better valid', securePassword.VALID, betterValid)
+  verifyStatus('better valid', securePassword.VALID, betterValid)
 
   const betterInvalid = await betterPwd.verify(wrongPassword, betterHash)
-  verifyStatus(assert, 'better invalid', securePassword.INVALID, betterInvalid)
+  verifyStatus('better invalid', securePassword.INVALID, betterInvalid)
 })
 
-test('Can handle invalid hash sync', async function (assert) {
+test('Can handle invalid hash sync', async function () {
   const pwd = securePassword()
   const userPassword = Buffer.from('my secret')
   const invalidHash = Buffer.allocUnsafe(128)
 
   const unrecognizedHash = await pwd.verify(userPassword, invalidHash)
-  verifyStatus(assert, 'unrecognized hash', securePassword.INVALID_UNRECOGNIZED_HASH, unrecognizedHash)
-  assert.end()
+  verifyStatus('unrecognized hash', securePassword.INVALID_UNRECOGNIZED_HASH, unrecognizedHash)
 })

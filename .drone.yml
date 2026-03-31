@@ -8,6 +8,10 @@ steps:
   image: node:current-alpine
   commands: [cp -R . /src, cd /src, npm ci, npm test]
 
+- name: test-node-24-debian
+  image: node:24
+  commands: [cp -R . /src, cd /src, npm ci, npm test]
+
 - name: test-node-22-debian
   image: node:22
   commands: [cp -R . /src, cd /src, npm ci, npm test]
@@ -52,6 +56,6 @@ trigger:
   event: [push]
 ---
 kind: signature
-hmac: e2aabe6feb8e9568c8732a0b2d6643d2f8796ad34be11bc15a0cd0dbcdd34cf4
+hmac: 38dde6cd5f6070c0836bdb06a0f83075cfca5a8fa38e9cd3643b50b83f7c31ea
 
 ...
